@@ -6,6 +6,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 public class CodeWriter {
     private FileWriter fWriter;
@@ -20,10 +21,13 @@ public class CodeWriter {
     private Map<String,String> BinocularOperators;//双目运算符
     private Map<String,String> MonadicOperators; ///单目运算符
     private Map<String,String> ComparisonOperators;//比较运算符
+    //push、pop语句进行分类
+    private Map<String,String> ASegment;
+    private Map<String,Function<String,String>> BSegment;
 
     CodeWriter(String outfile) throws IOException{
-        File dir=new File("D:\\深大生活\\作业\\java\\03 作业\\VMTranslator\\src\\resources");
-        fWriter=new FileWriter(dir+"\\"+outfile);
+        File file=new File("D:\\深大生活\\作业\\java\\03 作业\\VMTranslator\\src\\resources\\"+outfile);
+        fWriter=new FileWriter(file);
         bWriter=new BufferedWriter(fWriter);
         BinocularOperators=new HashMap<String,String>();
         BinocularOperators.put("add", "+");
@@ -37,6 +41,18 @@ public class CodeWriter {
         ComparisonOperators.put("eq", "JEQ");
         ComparisonOperators.put("gt", "JGT");
         ComparisonOperators.put("lt", "JLT");
+        ASegment=new HashMap<String,String>();
+        ASegment.put("local", "LCL");
+        ASegment.put("argument", "ARG");
+        ASegment.put("this", "THIS");
+        ASegment.put("that", "THAT");
+        ASegment.put("temp", "5");
+        BSegment=new HashMap<String,Function<String,String>>();
+        String filename=file.getName();
+        Function<String,String> staticvariable=i->filename.substring(0,filename.lastIndexOf(".")+1)+i;
+        Function<String,String> pointervariable=i->i=i.equals("0")?"THIS":i.equals("1")?"THAT":null;
+        BSegment.put("static", staticvariable);
+        BSegment.put("pointer",pointervariable);
     }
 
     void writeArithemtic(String command) throws IOException{
@@ -51,18 +67,30 @@ public class CodeWriter {
             writeCompareStatements(comparsion);
         }
     }
-    void writePushPop(CommandTpye command,String segment,int index) throws IOException{
-        if(command==CommandTpye.push){
-            if(segment.equals("constant")){
-            //*sp=index
-                //D=i 
-                newline("@"+String.valueOf(index)+"\nD=A");
-                //*sp=D
-                newline("@SP\nA=M\nM=D");
-            //sp++
-                newline(SPADD1);
-                
-            }
+    void writePush(String segment,int index) throws IOException{
+        if(segment.equals("constant")){
+            writePushConstant(String.valueOf(index));
+        }else if(ASegment.containsKey(segment)){
+            String predefine=ASegment.get(segment);
+            writePushBySegmentAndIndex(predefine,String.valueOf(index));
+        }else if(BSegment.containsKey(segment)){
+            Function<String,String> getVariable=BSegment.get(segment);
+            String var=getVariable.apply(String.valueOf(index));
+            // newline("-------push"+var);
+            writePushByIndex(var);
+            // newline("-------");
+        }
+    }
+    void writePop(String segment,int index) throws IOException{
+        if(ASegment.containsKey(segment)){
+            String predefine=ASegment.get(segment);
+            writePopBySegmentAndIndex(predefine,String.valueOf(index));
+        }else if(BSegment.containsKey(segment)){
+            Function<String,String> getVariable=BSegment.get(segment);
+            String var=getVariable.apply(String.valueOf(index));
+            // newline("-------pop"+var);
+            writePopByIndex(var);
+            // newline("-------");
         }
     }
     void close() throws IOException{
@@ -75,6 +103,7 @@ public class CodeWriter {
         bWriter.newLine();
     }
     
+
     private void writeBinomialArithmeticStatements(String operator) throws IOException{
         //sp--
         newline(SPSUB1);
@@ -122,4 +151,60 @@ public class CodeWriter {
         //sp++
         newline(SPADD1);
     }
+    
+
+    private void writePushConstant(String index) throws IOException{
+         //*sp=var
+        //D=i
+        newline("@"+index+"\nD=A");
+            //*sp=D
+        newline("@SP\nA=M\nM=D");
+        //sp++
+        newline(SPADD1);
+    }
+    
+    private void writePushBySegmentAndIndex(String predefine,String index) throws IOException{
+        //addr=predefine+index
+        newline("@"+index+"\nD=A");
+        if(predefine.equals("5"))
+            newline("@"+predefine+"\nD=D+A");
+        else newline("@"+predefine+"\nD=D+M");
+        newline("@addr\nM=D");
+        //*SP=*addr
+        newline("A=M\nD=M");
+        newline("@SP\nA=M\nM=D");
+        //SP++
+        newline(SPADD1);
+    }
+    private void writePopBySegmentAndIndex(String predefine,String index)throws IOException{
+        //addr=predefine+index
+        newline("@"+index+"\nD=A");
+        if(predefine.equals("5"))
+            newline("@"+predefine+"\nD=D+A");
+        else newline("@"+predefine+"\nD=D+M");
+        newline("@addr\nM=D");
+        //SP--
+        newline(SPSUB1);
+        //*addr =*p
+        newline("A=M\nD=M");
+        newline("@addr\nA=M\nM=D");
+    }
+    
+    private void writePushByIndex(String variable) throws IOException{
+        //*sp=var
+        //D=variable
+        newline("@"+variable+"\nD=M");
+            //*sp=D
+        newline("@SP\nA=M\nM=D");
+        //sp++
+        newline(SPADD1);
+    }
+    private void writePopByIndex(String variable)throws IOException{
+        //SP--
+        newline(SPSUB1);
+        //var=*SP 
+        newline("A=M\nD=M");
+        newline("@"+variable+"\nM=D");
+    }
+   
 }
