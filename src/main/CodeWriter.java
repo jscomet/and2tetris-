@@ -1,3 +1,4 @@
+package main;
 public class CodeWriter {
     CodeWriter(String outfile){
 
